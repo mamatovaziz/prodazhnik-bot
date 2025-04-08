@@ -11,8 +11,8 @@ from telegram.ext import (
 )
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
-import pytz
-
+import pytz 
+import random
 # Включаем логирование (для дебага)
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
