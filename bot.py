@@ -129,8 +129,12 @@ def main():
     scheduler.add_job(lambda: send_morning_messages(None), 'cron', hour=10, minute=0, timezone=TZ)
     scheduler.start()
 
-    updater.start_polling()
-    updater.idle()
+    updater.start_webhook(
+    listen="0.0.0.0",
+    port=int(os.environ.get("PORT", 5000)),
+    url_path=TOKEN,
+    webhook_url=f"https://{render_subdomain}.onrender.com/{TOKEN}"
+)
 
 if __name__ == '__main__':
     main()
