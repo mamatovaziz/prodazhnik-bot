@@ -126,7 +126,7 @@ def main():
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
 
     scheduler = BackgroundScheduler()
-    scheduler.add_job(send_morning_messages, 'cron', hour=10, minute=0, timezone=TZ)
+    scheduler.add_job(lambda: send_morning_messages(None), 'cron', hour=10, minute=0, timezone=TZ)
     scheduler.start()
 
     updater.start_polling()
