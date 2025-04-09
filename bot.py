@@ -1,7 +1,10 @@
 import logging
 import os
 import random
+import pytz
+import requests
 import openai
+
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Updater,
@@ -12,21 +15,34 @@ from telegram.ext import (
     CallbackQueryHandler
 )
 from apscheduler.schedulers.background import BackgroundScheduler
-import pytz
+from datetime import datetime
 
-# Логирование
+# Подключение ключа OpenAI
+openai.api_key = os.environ.get("OPENAI_API_KEY")
+
+# Включаем логирование (для дебага)
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 
-# Конфигурация
 TOKEN = os.environ.get("BOT_TOKEN")
 TZ = pytz.timezone(os.environ.get("TZ", "Asia/Almaty"))
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-openai.api_key = OPENAI_API_KEY
 
+# Хранилище подписчиков
 subscribers = set()
+
+# Индивидуальные сообщения (можно менять под своих)
+messages = {
+    "@Arystan010": "Арыстан, снова понедельник. Очаровывать клиентов взглядом — это не стратегия.",
+    "@Aleksandraofficial_0": "Александра, если клиенту не позвонить — он не купит кухню телепатически.",
+    "@Ayanskiy01": "Аян, если ты читаешь это — ты проснулся. Это уже достижение.",
+    "@salamatmalam": "Рауан, клиенты — это не соседи. Перестань говорить 'брат, ща всё будет'.",
+    "@Bibaryss": "Бибарыс, клиент — не мама. Не надо быть таким вежливым. Дави.",
+    "@whitey43": "Алексей, KPI — это не роман. Переключись с Лии на звонки.",
+    "@w900zx": "Лия, добавь к своей сказочной подаче немного коммерческого террора.",
+    "@mystery": "Едил, твоё авто болеет чаще, чем ты работаешь. Вперёд, воин!"
+}
 
 # Команда /start
 def start(update: Update, context: CallbackContext):
@@ -36,13 +52,15 @@ def start(update: Update, context: CallbackContext):
 
     subscribers.add(chat_id)
 
-    keyboard = [[InlineKeyboardButton("Отписаться (но ты слабак)", callback_data="unsubscribe")]]
+    keyboard = [
+        [InlineKeyboardButton("Отписаться (но ты слабак)", callback_data="unsubscribe")]
+    ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     update.message.reply_text(
         f"Привет, {username}.\n"
-        f"Ты подключился к 'ПроснисьТыПродажник'.\n"
-        f"С 10:00 ежедневно я буду вставать раньше тебя, чтобы убедиться: ты не просрал KPI.",
+        f"Добро пожаловать в рассылку 'ПроснисьТыПродажник'.\n"
+        f"С 10:00 ежедневно тебя будет будить не совесть, а я.",
         reply_markup=reply_markup
     )
 
@@ -51,65 +69,79 @@ def stop(update: Update, context: CallbackContext):
     chat_id = update.effective_chat.id
     if chat_id in subscribers:
         subscribers.remove(chat_id)
-        update.message.reply_text("Окей, ты отписался. KPI сам себя не провалит, но ты попробуешь.")
+        update.message.reply_text("Окей, ты отписался. Мир стал чуть тише. Но твой KPI — нет.")
     else:
-        update.message.reply_text("Ты даже не был подписан. Легенда невидимого фронта.")
+        update.message.reply_text("Ты и не был подписан, но уже расстроил меня.")
 
-# Обработка кнопок
+# Обработка нажатий кнопок
 def button_callback(update: Update, context: CallbackContext):
     query = update.callback_query
     query.answer()
-    chat_id = query.message.chat_id
 
+    chat_id = query.message.chat_id
     if query.data == "unsubscribe":
-        subscribers.discard(chat_id)
-        keyboard = [[InlineKeyboardButton("Вернуться (в ад продаж)", callback_data="resubscribe")]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        query.edit_message_text(
-            text="Ты сбежал. Не все рождены для звонков. Кто-то выбирает путь 'просто посидеть в офисе'.",
-            reply_markup=reply_markup
-        )
+        if chat_id in subscribers:
+            subscribers.remove(chat_id)
+            keyboard = [
+                [InlineKeyboardButton("Хочу вернуться (я был слаб)", callback_data="resubscribe")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            query.edit_message_text(
+                text="Ты отписался. Не все рождены для давления. Кто-то выбирает путь слабого Wi-Fi.",
+                reply_markup=reply_markup
+            )
     elif query.data == "resubscribe":
         subscribers.add(chat_id)
-        query.edit_message_text(text="Возвращение блудного менеджера. Добро пожаловать в пекло.")
-
-# GPT-сарказм
-def generate_response(prompt):
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "Ты корпоративный ИИ-бот, дерзкий, язвительный, говоришь с сарказмом и агрессией. Мотивируешь через стыд и жёсткие подколы."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.95,
-            max_tokens=120
+        query.edit_message_text(
+            text="Возвращение блудного продажника. Надеюсь, ты теперь готов к KPI."
         )
-        return response.choices[0].message['content'].strip()
-    except Exception as e:
-        return f"Ошибка ИИ. Видимо, ты перегрузил мой интеллект своей глупостью. ({e})"
 
-# Ответ на сообщения
+# Обработка входящих сообщений с ИИ
+
 def handle_message(update: Update, context: CallbackContext):
     user = update.effective_user
+    username = user.username or "гость"
     name = user.first_name or "ты"
     text = update.message.text
 
-    reply = generate_response(text)
-    context.bot.send_message(chat_id=update.effective_chat.id, text=f"{name}, {reply}")
+    prompt = f"""
+Ты — дерзкий, язвительный ассистент по продажам, который не терпит глупости.
+Отвечай коротко, с юмором, с максимумом сарказма и немного высокомерия.
+Добавляй элемент мотивации, но только в стиле бездушного корпоративного ИИ.
+
+Пользователь ({username}): {text}
+Бот:"""
+
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=100,
+            temperature=0.9
+        )
+        reply = response.choices[0].message["content"].strip()
+
+        update.message.reply_text(reply)
+
+        # Пример гифки на успех
+        if any(word in reply.lower() for word in ["успех", "победа", "продажа"]):
+            context.bot.send_animation(chat_id=update.effective_chat.id,
+                                       animation="https://media.giphy.com/media/l2Sq6Jq5mI1tZ2P4I/giphy.gif")
+
+    except Exception as e:
+        update.message.reply_text(f"Азиз, ИИ лёг. Причина: {e}")
 
 # Утренняя рассылка
+
 def send_morning_messages(context: CallbackContext):
     for chat_id in subscribers:
-        try:
-            user = context.bot.get_chat(chat_id)
-            username = f"@{user.username}" if user.username else user.first_name
-            msg = generate_response(f"Напомни {username} в 10:00, что он должен делать продажи, но с язвительным и мотивационным стилем.")
-            context.bot.send_message(chat_id=chat_id, text=msg)
-        except Exception as e:
-            logging.warning(f"Ошибка при отправке утреннего сообщения: {e}")
+        user = context.bot.get_chat(chat_id)
+        username = f"@{user.username}" if user.username else user.first_name
+        msg = messages.get(username, f"{username}, просыпайся. KPI не сам себя сделает.")
+        context.bot.send_message(chat_id=chat_id, text=msg)
 
-# Запуск
+# Основной запуск
+
 def main():
     updater = Updater(token=TOKEN, use_context=True)
     dispatcher = updater.dispatcher
