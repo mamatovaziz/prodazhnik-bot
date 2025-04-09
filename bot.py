@@ -1,5 +1,7 @@
 import logging
 import os
+import random
+import requests
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Updater,
@@ -10,95 +12,67 @@ from telegram.ext import (
     CallbackQueryHandler
 )
 from apscheduler.schedulers.background import BackgroundScheduler
-import pytz 
-import random
+from datetime import datetime
+import pytz
 
-# Логирование
+# Логируем всё, когда кто-то не запланил
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 
-# Конфигурация
 TOKEN = os.environ.get("BOT_TOKEN")
 TZ = pytz.timezone(os.environ.get("TZ", "Asia/Almaty"))
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")  # Безопасно!
+
 subscribers = set()
 
-# Утренние персональные шутки
+# Индивидуалки
 messages = {
     "@Arystan010": "Арыстан, снова понедельник. Очаровывать клиентов взглядом — это не стратегия.",
-    "@Aleksandraofficial_0": "Александра, если клиенту не позвонить — он не купит кухню телепатически.",
-    "@Ayanskiy01": "Аян, если ты читаешь это — ты проснулся. Это уже достижение.",
-    "@salamatmalam": "Рауан, клиенты — это не соседи. Перестань говорить 'брат, ща всё будет'.",
-    "@Bibaryss": "Бибарыс, клиент — не мама. Не надо быть таким вежливым. Дави.",
-    "@whitey43": "Алексей, KPI — это не роман. Переключись с Лии на звонки.",
-    "@w900zx": "Лия, добавь к своей сказочной подаче немного коммерческого террора.",
-    "@mystery": "Едил, твоё авто болеет чаще, чем ты работаешь. Вперёд, воин!"
+    "@w900zx": "Лия, добавь к сказочной подаче немного коммерческого террора."
 }
 
-# Гифки для эффектного финала
-media_gifs = [
-    "https://media.giphy.com/media/l0Exk8EUzSLsrErEQ/giphy.gif",
-    "https://media.giphy.com/media/xT1XGO3jOD3jqsW9z6/giphy.gif",
-    "https://media.giphy.com/media/3og0IMJcSI8p6hYQXS/giphy.gif",
-    "https://media.giphy.com/media/3oriO0OEd9QIDdllqo/giphy.gif",
-    "https://media.giphy.com/media/l3vRfNA1p0rvhMSvS/giphy.gif",
-    "https://media.giphy.com/media/3o6Zt7iT8qtYd7GTn6/giphy.gif",
-]
+# /start
 
-# Команда /start
 def start(update: Update, context: CallbackContext):
     user = update.effective_user
     chat_id = update.effective_chat.id
     username = f"@{user.username}" if user.username else user.first_name
-
     subscribers.add(chat_id)
 
-    keyboard = [
-        [InlineKeyboardButton("Отписаться (но ты слабак)", callback_data="unsubscribe")]
-    ]
+    keyboard = [[InlineKeyboardButton("Отписаться (но ты слабак)", callback_data="unsubscribe")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     update.message.reply_text(
-        f"Привет, {username}.\n"
-        f"Добро пожаловать в рассылку 'ПроснисьТыПродажник'.\n"
-        f"С 10:00 ежедневно тебя будет будить не совесть, а я.",
+        f"Привет, {username}.\n🌟 Это 'ПроснисьТыПродажник'! С 10:00 я буду тебя дерзко поднимать.",
         reply_markup=reply_markup
     )
 
-# Команда /stop
+# /stop
+
 def stop(update: Update, context: CallbackContext):
     chat_id = update.effective_chat.id
     if chat_id in subscribers:
         subscribers.remove(chat_id)
-        update.message.reply_text("Окей, ты отписался. Мир стал чуть тише. Но твой KPI — нет.")
+        update.message.reply_text("Ладно, отписался. Теперь кому я буду посылать гифки?")
     else:
-        update.message.reply_text("Ты и не был подписан, но уже расстроил меня.")
+        update.message.reply_text("Ты и не был подписан, но уже портишь мне настроение.")
 
-# Обработка кнопок
+# Кнопки
+
 def button_callback(update: Update, context: CallbackContext):
     query = update.callback_query
     query.answer()
     chat_id = query.message.chat_id
-
     if query.data == "unsubscribe":
-        if chat_id in subscribers:
-            subscribers.remove(chat_id)
-            keyboard = [
-                [InlineKeyboardButton("Хочу вернуться (я был слаб)", callback_data="resubscribe")]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            query.edit_message_text(
-                text="Ты отписался. Не все рождены для давления. Кто-то выбирает путь слабого Wi-Fi.",
-                reply_markup=reply_markup
-            )
-    elif query.data == "resubscribe":
-        subscribers.add(chat_id)
+        subscribers.discard(chat_id)
         query.edit_message_text(
-            text="Возвращение блудного продажника. Надеюсь, ты теперь готов к KPI."
+            "Ты сбежал. Да же не важно. Продажи без тебя стали только грустнее."
         )
 
-# Ответы на любые сообщения
+# Ответ на сообщения
+
 def handle_message(update: Update, context: CallbackContext):
     user = update.effective_user
     username = user.username or ""
@@ -106,56 +80,28 @@ def handle_message(update: Update, context: CallbackContext):
 
     responses = {
         "Arystan010": [
-            f"{name}, хватит сверкать самоуверенностью. Она не продаёт кухни.",
-            f"Арыстан, CRM не падает от взгляда. Придётся звонить."
-        ],
-        "Aleksandraofficial_0": [
-            f"Александра, если бы мысли звонили клиентам — ты была бы чемпион.",
-            f"Звонок — не проклятие. Попробуй, не бойся."
-        ],
-        "Ayanskiy01": [
-            f"Аян, проспал сообщение? Шок-контент.",
-            f"Аян, включи будильник и режим продажника."
-        ],
-        "salamatmalam": [
-            f"Рауан, 'брат' — не универсальный скрипт продаж.",
-            f"Рауан, клиенты — не твои соседи по аулу. Тон деловой."
-        ],
-        "Bibaryss": [
-            f"Бибарыс, хватит уговаривать клиентов. Дави по скрипту.",
-            f"Вежливость — хорошо. Но закрытые сделки — лучше."
-        ],
-        "whitey43": [
-            f"Алексей, CRM ждёт. Лия не поможет с отчётами.",
-            f"35 лет. С молоденькой. Но всё ещё нет планов по продажам."
+            f"{name}, хватит сверкать самоуверенностью. Она не продаёт кухни."
         ],
         "w900zx": [
-            f"Лия, с клиентами не надо как с единорогами. Жёстче.",
-            f"Сказка — сказкой, но кухня сама себя не продаст."
+            f"{name}, с клиентами не надо как с единорогами. Жёстче."
         ]
     }
 
-    general_responses = [
-        "Интересно. А теперь позвони кому-нибудь, герой.",
-        "Ты умеешь писать. Может теперь — продавать?",
-        "Слова не закрывают сделки. Действуй.",
-        "Может, CRM тоже хочет узнать об этом?",
-        "Если бы клавиатура считалась KPI, ты бы был топ.",
-        "Пока ты пишешь мне — кто-то делает продажу. И это не ты.",
-        "Отличный текст. А где деньги, Лебовски?"
+    general = [
+        f"{name}, если бы письма делали план, ты бы был герой.",
+        "Ты споришь со мной? Странный выбор, я же бот.",
+        "Ты опять пишешь, вместо того чтобы звонить? 🤦"
     ]
 
-    if username in responses:
-        reply = random.choice(responses[username])
-    else:
-        reply = f"{name}, {random.choice(general_responses)}"
-
+    reply = random.choice(responses.get(username, general))
     context.bot.send_message(chat_id=update.effective_chat.id, text=reply)
 
-    gif_url = random.choice(media_gifs)
-    context.bot.send_animation(chat_id=update.effective_chat.id, animation=gif_url)
+    if random.random() < 0.3:
+        gif_url = "https://media.giphy.com/media/3o6Zt481isNVuQI1l6/giphy.gif"
+        context.bot.send_animation(chat_id=update.effective_chat.id, animation=gif_url)
 
-# Утренняя рассылка
+# Утренняя дерзкая поднятка
+
 def send_morning_messages(context: CallbackContext):
     for chat_id in subscribers:
         user = context.bot.get_chat(chat_id)
@@ -163,7 +109,8 @@ def send_morning_messages(context: CallbackContext):
         msg = messages.get(username, f"{username}, пора что-то делать. Желательно полезное.")
         context.bot.send_message(chat_id=chat_id, text=msg)
 
-# Запуск бота
+# Запуск
+
 def main():
     updater = Updater(token=TOKEN, use_context=True)
     dispatcher = updater.dispatcher
@@ -186,4 +133,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
