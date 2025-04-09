@@ -139,8 +139,9 @@ def main():
 if __name__ == '__main__':
     main()
 def handle_message(update, context):
-    user_id = update.effective_user.username or ""
-    name = update.effective_user.first_name or "ты"
+    user = update.effective_user
+    username = user.username or ""
+    name = user.first_name or "ты"
 
     responses = {
         "Arystan010": [
