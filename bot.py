@@ -133,7 +133,7 @@ def main():
     listen="0.0.0.0",
     port=int(os.environ.get("PORT", 5000)),
     url_path=TOKEN,
-    webhook_url = f"https://prodazhnik-bot.onrender.com/{TOKEN}"
+    webhook_url=f"https://prodazhnik-bot.onrender.com/{TOKEN}"
 )
 
 if __name__ == '__main__':
