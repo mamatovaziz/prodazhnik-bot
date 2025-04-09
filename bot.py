@@ -1,5 +1,6 @@
 import logging
 import os
+import random
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Updater,
@@ -12,18 +13,20 @@ from telegram.ext import (
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
 import pytz
-import random
-import openai
+from openai import OpenAI
 
-# Logging
+# Настройка клиента OpenAI
+client = OpenAI()
+
+# Логирование
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 
-TOKEN = os.environ.get("BOT_TOKEN")
+# Переменные окружения
+TELEGRAM_BOT_TOKEN = os.environ.get("BOT_TOKEN")
 TZ = pytz.timezone(os.environ.get("TZ", "Asia/Almaty"))
-openai.api_key = os.environ.get("OPENAI_API_KEY")
 
 subscribers = set()
 
@@ -38,12 +41,14 @@ messages = {
     "@mystery": "Едил, твоё авто болеет чаще, чем ты работаешь. Вперёд, воин!"
 }
 
+# Команды
+
 def start(update: Update, context: CallbackContext):
     user = update.effective_user
     chat_id = update.effective_chat.id
     username = f"@{user.username}" if user.username else user.first_name
-
     subscribers.add(chat_id)
+
     keyboard = [[InlineKeyboardButton("Отписаться (но ты слабак)", callback_data="unsubscribe")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -64,37 +69,41 @@ def button_callback(update: Update, context: CallbackContext):
     query = update.callback_query
     query.answer()
     chat_id = query.message.chat_id
+
     if query.data == "unsubscribe":
         if chat_id in subscribers:
             subscribers.remove(chat_id)
             keyboard = [[InlineKeyboardButton("Хочу вернуться (я был слаб)", callback_data="resubscribe")]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             query.edit_message_text("Ты отписался. Не все рождены для давления. Кто-то выбирает путь слабого Wi-Fi.", reply_markup=reply_markup)
+
     elif query.data == "resubscribe":
         subscribers.add(chat_id)
         query.edit_message_text("Возвращение блудного продажника. Надеюсь, ты теперь готов к KPI.")
 
+# OpenAI ответ
+
 def generate_ai_reply(prompt):
-    response = openai.ChatCompletion.create(
-        model="gpt-4",
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=60,
-        temperature=0.9
-    )
-    return response['choices'][0]['message']['content']
+    try:
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Ты язвительный и саркастичный помощник продаж."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"ИИ лёг. Причина: {str(e)}"
+
+# Ответ на любое сообщение
 
 def handle_message(update: Update, context: CallbackContext):
-    user = update.effective_user
-    username = f"@{user.username}" if user.username else user.first_name
-    message = update.message.text
-
-    prompt = f"Ответь с сарказмом и юмором в стиле дерзкого продажника на сообщение: {message}"
+    prompt = update.message.text
     reply = generate_ai_reply(prompt)
+    update.message.reply_text(reply)
 
-    context.bot.send_message(
-        chat_id=update.effective_chat.id,
-        text=f"{username}, {reply}"
-    )
+# Утренняя рассылка
 
 def send_morning_messages(context: CallbackContext):
     for chat_id in subscribers:
@@ -103,8 +112,10 @@ def send_morning_messages(context: CallbackContext):
         msg = messages.get(username, f"{username}, пора что-то делать. Желательно полезное.")
         context.bot.send_message(chat_id=chat_id, text=msg)
 
+# Запуск
+
 def main():
-    updater = Updater(token=TOKEN, use_context=True)
+    updater = Updater(token=TELEGRAM_BOT_TOKEN, use_context=True)
     dispatcher = updater.dispatcher
 
     dispatcher.add_handler(CommandHandler("start", start))
@@ -116,13 +127,7 @@ def main():
     scheduler.add_job(lambda: send_morning_messages(None), 'cron', hour=10, minute=0, timezone=TZ)
     scheduler.start()
 
-    updater.start_webhook(
-        listen="0.0.0.0",
-        port=int(os.environ.get("PORT", 5000)),
-        url_path=TOKEN,
-        webhook_url=f"https://{os.environ.get('RENDER_EXTERNAL_HOSTNAME')}/{TOKEN}"
-    )
-
+    updater.start_polling()
     updater.idle()
 
 if __name__ == '__main__':
