@@ -1,10 +1,7 @@
 import logging
 import os
-import random
-import pytz
-import requests
 import openai
-
+import requests
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Updater,
@@ -16,23 +13,22 @@ from telegram.ext import (
 )
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
+import pytz
+import random
 
-# Подключение ключа OpenAI
-openai.api_key = os.environ.get("OPENAI_API_KEY")
-
-# Включаем логирование (для дебага)
+# Логирование
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 
 TOKEN = os.environ.get("BOT_TOKEN")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 TZ = pytz.timezone(os.environ.get("TZ", "Asia/Almaty"))
+openai.api_key = OPENAI_API_KEY
 
-# Хранилище подписчиков
 subscribers = set()
 
-# Индивидуальные сообщения (можно менять под своих)
 messages = {
     "@Arystan010": "Арыстан, снова понедельник. Очаровывать клиентов взглядом — это не стратегия.",
     "@Aleksandraofficial_0": "Александра, если клиенту не позвонить — он не купит кухню телепатически.",
@@ -49,7 +45,6 @@ def start(update: Update, context: CallbackContext):
     user = update.effective_user
     chat_id = update.effective_chat.id
     username = f"@{user.username}" if user.username else user.first_name
-
     subscribers.add(chat_id)
 
     keyboard = [
@@ -58,9 +53,7 @@ def start(update: Update, context: CallbackContext):
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     update.message.reply_text(
-        f"Привет, {username}.\n"
-        f"Добро пожаловать в рассылку 'ПроснисьТыПродажник'.\n"
-        f"С 10:00 ежедневно тебя будет будить не совесть, а я.",
+        f"Привет, {username}.\nДобро пожаловать в рассылку 'ПроснисьТыПродажник'.\nС 10:00 ежедневно тебя будет будить не совесть, а я.",
         reply_markup=reply_markup
     )
 
@@ -77,8 +70,8 @@ def stop(update: Update, context: CallbackContext):
 def button_callback(update: Update, context: CallbackContext):
     query = update.callback_query
     query.answer()
-
     chat_id = query.message.chat_id
+
     if query.data == "unsubscribe":
         if chat_id in subscribers:
             subscribers.remove(chat_id)
@@ -96,52 +89,36 @@ def button_callback(update: Update, context: CallbackContext):
             text="Возвращение блудного продажника. Надеюсь, ты теперь готов к KPI."
         )
 
-# Обработка входящих сообщений с ИИ
-
+# ИИ-обработка входящих сообщений
 def handle_message(update: Update, context: CallbackContext):
     user = update.effective_user
-    username = user.username or "гость"
     name = user.first_name or "ты"
-    text = update.message.text
-
-    prompt = f"""
-Ты — дерзкий, язвительный ассистент по продажам, который не терпит глупости.
-Отвечай коротко, с юмором, с максимумом сарказма и немного высокомерия.
-Добавляй элемент мотивации, но только в стиле бездушного корпоративного ИИ.
-
-Пользователь ({username}): {text}
-Бот:"""
+    user_input = update.message.text
 
     try:
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=100,
-            temperature=0.9
+            messages=[
+                {"role": "system", "content": "Ты бот-продажник с саркастичным и дерзким характером. Отвечай резко, дерзко и с шутками."},
+                {"role": "user", "content": user_input}
+            ]
         )
-        reply = response.choices[0].message["content"].strip()
-
-        update.message.reply_text(reply)
-
-        # Пример гифки на успех
-        if any(word in reply.lower() for word in ["успех", "победа", "продажа"]):
-            context.bot.send_animation(chat_id=update.effective_chat.id,
-                                       animation="https://media.giphy.com/media/l2Sq6Jq5mI1tZ2P4I/giphy.gif")
-
+        reply = response.choices[0].message.content.strip()
     except Exception as e:
-        update.message.reply_text(f"Азиз, ИИ лёг. Причина: {e}")
+        logging.error("AI error: %s", str(e))
+        reply = f"{name}, ИИ лёг. Причина: {str(e)}"
+
+    context.bot.send_message(chat_id=update.effective_chat.id, text=reply)
 
 # Утренняя рассылка
-
 def send_morning_messages(context: CallbackContext):
     for chat_id in subscribers:
         user = context.bot.get_chat(chat_id)
         username = f"@{user.username}" if user.username else user.first_name
-        msg = messages.get(username, f"{username}, просыпайся. KPI не сам себя сделает.")
+        msg = messages.get(username, f"{username}, пора что-то делать. Желательно полезное.")
         context.bot.send_message(chat_id=chat_id, text=msg)
 
-# Основной запуск
-
+# Запуск бота
 def main():
     updater = Updater(token=TOKEN, use_context=True)
     dispatcher = updater.dispatcher
