@@ -36,6 +36,16 @@ messages = {
     "@mystery": "Едил, твоё авто болеет чаще, чем ты работаешь. Вперёд, воин!"
 }
 
+# Гифки для эффектного финала
+media_gifs = [
+    "https://media.giphy.com/media/l0Exk8EUzSLsrErEQ/giphy.gif",
+    "https://media.giphy.com/media/xT1XGO3jOD3jqsW9z6/giphy.gif",
+    "https://media.giphy.com/media/3og0IMJcSI8p6hYQXS/giphy.gif",
+    "https://media.giphy.com/media/3oriO0OEd9QIDdllqo/giphy.gif",
+    "https://media.giphy.com/media/l3vRfNA1p0rvhMSvS/giphy.gif",
+    "https://media.giphy.com/media/3o6Zt7iT8qtYd7GTn6/giphy.gif",
+]
+
 # Команда /start
 def start(update: Update, context: CallbackContext):
     user = update.effective_user
@@ -141,6 +151,9 @@ def handle_message(update: Update, context: CallbackContext):
         reply = f"{name}, {random.choice(general_responses)}"
 
     context.bot.send_message(chat_id=update.effective_chat.id, text=reply)
+
+    gif_url = random.choice(media_gifs)
+    context.bot.send_animation(chat_id=update.effective_chat.id, animation=gif_url)
 
 # Утренняя рассылка
 def send_morning_messages(context: CallbackContext):
