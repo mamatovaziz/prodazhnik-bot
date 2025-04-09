@@ -10,22 +10,21 @@ from telegram.ext import (
     CallbackQueryHandler
 )
 from apscheduler.schedulers.background import BackgroundScheduler
-from datetime import datetime
 import pytz 
 import random
-# Включаем логирование (для дебага)
+
+# Логирование
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 
+# Конфигурация
 TOKEN = os.environ.get("BOT_TOKEN")
 TZ = pytz.timezone(os.environ.get("TZ", "Asia/Almaty"))
-
-# Хранилище подписчиков
 subscribers = set()
 
-# Индивидуальные сообщения (можно менять под своих)
+# Утренние персональные шутки
 messages = {
     "@Arystan010": "Арыстан, снова понедельник. Очаровывать клиентов взглядом — это не стратегия.",
     "@Aleksandraofficial_0": "Александра, если клиенту не позвонить — он не купит кухню телепатически.",
@@ -36,6 +35,7 @@ messages = {
     "@w900zx": "Лия, добавь к своей сказочной подаче немного коммерческого террора.",
     "@mystery": "Едил, твоё авто болеет чаще, чем ты работаешь. Вперёд, воин!"
 }
+
 # Команда /start
 def start(update: Update, context: CallbackContext):
     user = update.effective_user
@@ -65,12 +65,12 @@ def stop(update: Update, context: CallbackContext):
     else:
         update.message.reply_text("Ты и не был подписан, но уже расстроил меня.")
 
-# Обработка нажатий кнопок
+# Обработка кнопок
 def button_callback(update: Update, context: CallbackContext):
     query = update.callback_query
     query.answer()
-
     chat_id = query.message.chat_id
+
     if query.data == "unsubscribe":
         if chat_id in subscribers:
             subscribers.remove(chat_id)
@@ -87,27 +87,62 @@ def button_callback(update: Update, context: CallbackContext):
         query.edit_message_text(
             text="Возвращение блудного продажника. Надеюсь, ты теперь готов к KPI."
         )
+
 # Ответы на любые сообщения
 def handle_message(update: Update, context: CallbackContext):
     user = update.effective_user
-    username = f"@{user.username}" if user.username else user.first_name
+    username = user.username or ""
+    name = user.first_name or "ты"
 
-    sarcastic_responses = [
-        "Интересно. А теперь попробуй сказать это клиенту.",
-        "Слова — это хорошо. Продажи — лучше.",
-        "Да-да, расскажи ещё. Мне нужен материал для стендапа.",
-        "Если бы сообщения продавали кухни — ты был бы легендой.",
-        "А теперь глубоко вдохни и иди звонить.",
-        "Ого, ты умеешь печатать. А тыкать на 'позвонить' не пробовал?",
-        "Запиши это в отчёт. Назови 'Великий Монолог'."
+    responses = {
+        "Arystan010": [
+            f"{name}, хватит сверкать самоуверенностью. Она не продаёт кухни.",
+            f"Арыстан, CRM не падает от взгляда. Придётся звонить."
+        ],
+        "Aleksandraofficial_0": [
+            f"Александра, если бы мысли звонили клиентам — ты была бы чемпион.",
+            f"Звонок — не проклятие. Попробуй, не бойся."
+        ],
+        "Ayanskiy01": [
+            f"Аян, проспал сообщение? Шок-контент.",
+            f"Аян, включи будильник и режим продажника."
+        ],
+        "salamatmalam": [
+            f"Рауан, 'брат' — не универсальный скрипт продаж.",
+            f"Рауан, клиенты — не твои соседи по аулу. Тон деловой."
+        ],
+        "Bibaryss": [
+            f"Бибарыс, хватит уговаривать клиентов. Дави по скрипту.",
+            f"Вежливость — хорошо. Но закрытые сделки — лучше."
+        ],
+        "whitey43": [
+            f"Алексей, CRM ждёт. Лия не поможет с отчётами.",
+            f"35 лет. С молоденькой. Но всё ещё нет планов по продажам."
+        ],
+        "w900zx": [
+            f"Лия, с клиентами не надо как с единорогами. Жёстче.",
+            f"Сказка — сказкой, но кухня сама себя не продаст."
+        ]
+    }
+
+    general_responses = [
+        "Интересно. А теперь позвони кому-нибудь, герой.",
+        "Ты умеешь писать. Может теперь — продавать?",
+        "Слова не закрывают сделки. Действуй.",
+        "Может, CRM тоже хочет узнать об этом?",
+        "Если бы клавиатура считалась KPI, ты бы был топ.",
+        "Пока ты пишешь мне — кто-то делает продажу. И это не ты.",
+        "Отличный текст. А где деньги, Лебовски?"
     ]
 
-    context.bot.send_message(
-        chat_id=update.effective_chat.id,
-        text=f"{username}, {sarcastic_responses[hash(username) % len(sarcastic_responses)]}"
-    )
+    if username in responses:
+        reply = random.choice(responses[username])
+    else:
+        reply = f"{name}, {random.choice(general_responses)}"
 
-# Рассылка сообщений в 10:00
+    context.bot.send_message(chat_id=update.effective_chat.id, text=reply)
+
+# Утренняя рассылка
 def send_morning_messages(context: CallbackContext):
     for chat_id in subscribers:
         user = context.bot.get_chat(chat_id)
@@ -115,7 +150,7 @@ def send_morning_messages(context: CallbackContext):
         msg = messages.get(username, f"{username}, пора что-то делать. Желательно полезное.")
         context.bot.send_message(chat_id=chat_id, text=msg)
 
-# Основной запуск
+# Запуск бота
 def main():
     updater = Updater(token=TOKEN, use_context=True)
     dispatcher = updater.dispatcher
@@ -130,56 +165,12 @@ def main():
     scheduler.start()
 
     updater.start_webhook(
-    listen="0.0.0.0",
-    port=int(os.environ.get("PORT", 5000)),
-    url_path=TOKEN,
-    webhook_url=f"https://prodazhnik-bot.onrender.com/{TOKEN}"
-)
+        listen="0.0.0.0",
+        port=int(os.environ.get("PORT", 5000)),
+        url_path=TOKEN,
+        webhook_url=f"https://prodazhnik-bot.onrender.com/{TOKEN}"
+    )
 
 if __name__ == '__main__':
     main()
-def handle_message(update, context):
-    user = update.effective_user
-    username = user.username or ""
-    name = user.first_name or "ты"
 
-    responses = {
-        "Arystan010": [
-            f"{name}, хорош уже быть самым красивым и уверенным в комнате. Уступи место боту.",
-            f"Арыстан, ты опять думаешь, что это CRM тебя боится? Мальчик ты дерзкий, но наивный."
-        ],
-        "Aleksandraofficial_0": [
-            f"Александра, ты снова спрашиваешь бота? Попробуй сначала позвонить клиенту, потом мучай меня.",
-            f"Твоя внимательность достойна награды. Но не от меня."
-        ],
-        "Ayanskiy01": [
-            f"Аян, ты хотя бы это сообщение не проспал?",
-            f"Аян, я надеюсь ты сейчас не за рулём, а то опять 'сломался'."
-        ],
-        "salamatmalam": [
-            f"Рауан, я бы ответил тебе на твоём диалекте, но мой село-бот словарь не установлен.",
-            f"Голос у тебя — как будто ты торгуешь овцами, а не кухнями."
-        ],
-        "Bibaryss": [
-            f"Бибарыс, хватит извиняться перед клиентами. Они тебя не любят, они тебя используют.",
-            f"Ты — воплощение доброты, и этим ты раздражаешь весь отдел."
-        ],
-        "whitey43": [
-            f"Алексей, хватит писать. Лучше спроси Лию, что тебе ответить.",
-            f"35 лет. С молоденькой. Но с ботом ты не потягаешься."
-        ],
-        "w900zx": [
-            f"Лия, говори с клиентами как с ботом. Волшебно, сказочно и ни о чём.",
-            f"Ты не Лия, ты персонаж из сказки. Я жду, когда прилетят единороги."
-        ]
-    }
-
-    default_responses = [
-        f"{name}, я тебя не знаю, но уже устал от тебя.",
-        "Ты написал сообщение. Это успех. Но не для тебя.",
-        "Бот тебя услышал. Но предпочёл проигнорировать.",
-        "Я бы тебе ответил, но корпоративный устав запрещает общение с непрофильными элементами."
-    ]
-
-    user_responses = responses.get(user_id, default_responses)
-    update.message.reply_text(random.choice(user_responses))
