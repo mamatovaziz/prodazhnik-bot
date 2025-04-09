@@ -1,53 +1,46 @@
 import os
 import openai
+from openai import OpenAI
 from telegram import Update, ForceReply
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
 
-# Получаем токен бота из переменных окружения
+# Получаем токены из переменных окружения
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-if not TELEGRAM_BOT_TOKEN or not OPENAI_API_KEY:
-    raise ValueError("Отсутствует TELEGRAM_BOT_TOKEN или OPENAI_API_KEY в переменных окружения.")
-
-# Инициализация клиента OpenAI
-openai.api_key = OPENAI_API_KEY
+# Подключаем OpenAI с новым клиентом
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 def start(update: Update, context: CallbackContext) -> None:
     user = update.effective_user
     update.message.reply_html(
-        rf"Привет, {user.mention_html()}! Я бот с искусственным интеллектом и сарказмом. Попробуй меня!",
+        rf"Привет, {user.mention_html()}! Я бот, запрограммированный на сарказм. Дерзай.",
         reply_markup=ForceReply(selective=True),
     )
 
 def help_command(update: Update, context: CallbackContext) -> None:
-    update.message.reply_text("Просто отправь мне сообщение, и я отвечу с изрядной долей сарказма.")
+    update.message.reply_text("Напиши мне что-нибудь. Я подумаю, стоит ли отвечать.")
 
 def handle_message(update: Update, context: CallbackContext) -> None:
-    user_message = update.message.text
+    user_input = update.message.text
 
     try:
-        response = openai.ChatCompletion.create(
+        completion = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "Ты — саркастичный и язвительный искусственный интеллект."},
-                {"role": "user", "content": user_message},
+                {"role": "system", "content": "Ты саркастичный, язвительный бот, которому всё надоело."},
+                {"role": "user", "content": user_input},
             ],
-            temperature=0.9,
-            max_tokens=150,
-            top_p=1,
-            frequency_penalty=0,
-            presence_penalty=0.6,
+            temperature=0.9
         )
-        bot_reply = response.choices[0].message['content'].strip()
+        reply = completion.choices[0].message.content
     except Exception as e:
-        bot_reply = f"Ой, произошла ошибка: {e}. Похоже, я сломался. Ура!"
+        reply = f"Извини, я поломался. Причина: {e}"
 
-    update.message.reply_text(bot_reply)
+    update.message.reply_text(reply)
 
 def main() -> None:
-    updater = Updater(TELEGRAM_BOT_TOKEN)
-
+    updater = Updater(token=TELEGRAM_BOT_TOKEN, use_context=True)
     dispatcher = updater.dispatcher
 
     dispatcher.add_handler(CommandHandler("start", start))
@@ -57,7 +50,7 @@ def main() -> None:
     updater.start_polling()
     updater.idle()
 
-if _name_ == '_main_':
+if __name__ == '__main__':
     main()
 
 
